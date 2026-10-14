@@ -1,0 +1,26 @@
+[package]
+name = "zectrix-ai-daily"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+license = "MIT"
+description = "Daily global AI news briefing for ZECTRIX Hub and the NOTE4 e-ink device"
+publish = false
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+axum = "0.8"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+quick-xml = "0.37"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "charset"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["fs", "io-util", "macros", "process", "rt-multi-thread", "signal", "sync", "time"] }
+toml = "0.8"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+strip = true

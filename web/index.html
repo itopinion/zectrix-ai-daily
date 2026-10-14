@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 日报 · ZECTRIX</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">
+      <span class="mark" aria-hidden="true">日</span>
+      <span>
+        <strong id="brandName">AI 日报</strong>
+        <small>ZECTRIX · NOTE 4</small>
+      </span>
+    </a>
+    <div class="top-meta">
+      <span id="deviceDot" class="dot"></span>
+      <span id="deviceStatus">未连接设备</span>
+      <button id="langToggle" class="quiet" type="button">English</button>
+    </div>
+  </header>
+
+  <div class="sheet">
+    <section class="edition">
+      <p class="kicker" id="kicker">全球人工智能早报</p>
+      <h1 id="editionTitle">今天的简报还在排版</h1>
+      <p class="edition-meta" id="editionMeta"></p>
+      <div class="edition-actions">
+        <button id="refresh" class="primary" type="button">立即刷新</button>
+        <span id="jobStatus" role="status"></span>
+      </div>
+      <p id="warnings" class="warnings" hidden></p>
+      <ol id="stories" class="stories"></ol>
+      <div id="empty" class="empty">
+        <h2 id="emptyTitle">这一天还没有简报</h2>
+        <p id="emptyBody">可以现在刷新，或等到设定的时间自动整理。没有本地模型时，仍会按信源权重和时间生成摘要。</p>
+      </div>
+    </section>
+
+    <aside class="rail">
+      <section class="panel device-panel">
+        <div class="panel-head">
+          <h2 id="deviceHeading">Note 4 画面</h2>
+          <span>400 × 300</span>
+        </div>
+        <div class="bezel">
+          <div id="eink" class="eink" aria-live="polite"></div>
+        </div>
+        <div class="device-keys">
+          <button type="button" data-key="up" id="keyUp">上</button>
+          <button type="button" data-key="down" id="keyDown">下</button>
+          <button type="button" data-key="select" id="keySelect">确认</button>
+          <button type="button" data-key="back" id="keyBack">返回</button>
+          <button type="button" data-key="briefing" id="keyBrief">连播</button>
+          <button type="button" data-key="stop" id="keyStop">停止</button>
+        </div>
+        <p class="hint" id="keyHint">上下选择，确认阅读。长按确认或点连播，会按顺序朗读，任意键停止。</p>
+      </section>
+
+      <form id="settingsForm" class="panel">
+        <div class="panel-head">
+          <h2 id="settingsHeading">早报设定</h2>
+        </div>
+        <label>刷新时间
+          <input id="refreshTime" type="time" required>
+        </label>
+        <label>保留条数
+          <input id="itemCount" type="number" min="5" max="20" step="1" required>
+        </label>
+        <label class="check"><input id="ttsEnabled" type="checkbox"> <span id="ttsLabel">打开朗读</span></label>
+        <label>语速 <output id="speedOut">1.00</output>
+          <input id="ttsSpeed" type="range" min="0.7" max="1.4" step="0.05">
+        </label>
+        <label>设备音量 <output id="volumeOut">70</output>
+          <input id="volume" type="range" min="0" max="100" step="1">
+        </label>
+        <label>Ollama 地址
+          <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" autocomplete="off">
+        </label>
+        <label>模型
+          <input id="ollamaModel" type="text" autocomplete="off">
+        </label>
+        <div class="pair">
+          <label>英文声音
+            <input id="voiceEn" type="text" autocomplete="off">
+          </label>
+          <label>中文声音
+            <input id="voiceZh" type="text" autocomplete="off">
+          </label>
+        </div>
+        <p class="hint" id="modelHint">留空 Ollama 地址即只用信源摘要。换语言会用已保存的原文重写当天简报。</p>
+        <button class="primary" type="submit" id="saveSettings">保存设定</button>
+        <p id="formError" class="warnings" role="alert"></p>
+      </form>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 id="sourcesHeading">信源</h2>
+        </div>
+        <ul id="sources" class="sources"></ul>
+        <button id="saveSources" class="secondary" type="button">保存信源开关</button>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 id="historyHeading">往日简报</h2>
+        </div>
+        <ul id="history" class="history"></ul>
+      </section>
+    </aside>
+  </div>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>

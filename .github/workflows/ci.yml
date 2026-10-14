@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        run: cargo test --locked
+  package-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify target
+        run: test "$(uname -m)" = arm64
+      - name: Test and package
+        run: |
+          cargo test --locked
+          ./scripts/package-app.sh
+          python3 scripts/verify-package.py dist/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zectrix-ai-daily-macos-aarch64
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error

@@ -1,0 +1,134 @@
+# Default source catalog for zectrix-ai-daily.
+# URLs were checked on 2026-10-14. Dead feeds are omitted on purpose.
+# Copy this file to $ZECTRIX_APP_DATA/sources.toml to override without rebuilding.
+# `enabled` is the default; the settings page stores per-source overrides.
+#
+# Dropped after checks:
+# - Anthropic: https://www.anthropic.com/rss.xml and /news/rss.xml return 404.
+#   No public RSS/Atom feed was found.
+# - Meta AI: https://ai.meta.com/blog/rss/ returns 404.
+# - 机器之心 official https://www.jiqizhixin.com/rss returns an HTML page, not a feed.
+#   The jiqizhixin entry below is a public WeChat-channel mirror (not operated
+#   by 机器之心). Replace `url` if you host another feed.
+
+[[source]]
+id = "openai"
+name = "OpenAI"
+name_zh = "OpenAI"
+kind = "feed"
+url = "https://openai.com/news/rss.xml"
+weight = 1.35
+enabled = true
+window_hours = 30
+max_items = 15
+
+[[source]]
+id = "deepmind"
+name = "Google DeepMind"
+name_zh = "Google DeepMind"
+kind = "feed"
+url = "https://deepmind.google/blog/rss.xml"
+weight = 1.30
+enabled = true
+window_hours = 30
+max_items = 12
+
+[[source]]
+id = "google-ai"
+name = "Google AI Blog"
+name_zh = "Google AI 博客"
+kind = "feed"
+url = "https://blog.google/innovation-and-ai/technology/ai/rss/"
+weight = 1.20
+enabled = true
+window_hours = 30
+max_items = 12
+
+[[source]]
+id = "mit-tr"
+name = "MIT Technology Review"
+name_zh = "MIT Technology Review"
+kind = "feed"
+url = "https://www.technologyreview.com/topic/artificial-intelligence/feed/"
+weight = 1.15
+enabled = true
+window_hours = 30
+max_items = 12
+
+[[source]]
+id = "the-verge"
+name = "The Verge AI"
+name_zh = "The Verge AI"
+kind = "feed"
+url = "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+weight = 1.10
+enabled = true
+window_hours = 30
+max_items = 12
+
+[[source]]
+id = "huggingface"
+name = "Hugging Face Blog"
+name_zh = "Hugging Face 博客"
+kind = "feed"
+url = "https://huggingface.co/blog/feed.xml"
+weight = 1.05
+enabled = true
+window_hours = 30
+max_items = 12
+
+[[source]]
+id = "techcrunch"
+name = "TechCrunch AI"
+name_zh = "TechCrunch AI"
+kind = "feed"
+url = "https://techcrunch.com/category/artificial-intelligence/feed/"
+weight = 0.95
+enabled = true
+window_hours = 30
+max_items = 12
+
+[[source]]
+id = "jiqizhixin"
+name = "机器之心"
+name_zh = "机器之心"
+kind = "feed"
+url = "https://raw.githubusercontent.com/osnsyc/Wechat-Scholar/main/channels/gh_dbc0a5474692.xml"
+weight = 1.20
+enabled = true
+window_hours = 36
+max_items = 12
+
+[[source]]
+id = "qbitai"
+name = "量子位"
+name_zh = "量子位"
+kind = "feed"
+url = "https://www.qbitai.com/feed"
+weight = 1.15
+enabled = true
+window_hours = 36
+max_items = 12
+
+[[source]]
+id = "hacker-news"
+name = "Hacker News"
+name_zh = "Hacker News"
+kind = "hn"
+url = "https://hacker-news.firebaseio.com/v0"
+weight = 1.00
+enabled = true
+window_hours = 30
+max_items = 10
+
+[[source]]
+id = "arxiv"
+name = "arXiv cs.AI / cs.CL"
+name_zh = "arXiv cs.AI / cs.CL"
+kind = "arxiv"
+url = "https://export.arxiv.org/api/query"
+categories = ["cs.AI", "cs.CL"]
+weight = 0.70
+enabled = true
+window_hours = 48
+max_items = 6
