@@ -8,6 +8,8 @@ Device connectivity, e-ink rasterization, and the shared speech environment belo
 
 Kokoro-82M is installed separately through Hub. It is not part of this package and is not covered by this MIT license. Default voices are `af_heart` (English) and `zf_xiaobei` (Mandarin). See the [Kokoro model card](https://huggingface.co/hexgrad/Kokoro-82M).
 
+Qwen3-TTS and MLX Audio are optional, separately installed speech components and retain their upstream licenses. The tested model is [mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit). Neither its weights nor the Python environment are included in this repository or app package.
+
 News text is fetched at runtime from the feeds in `sources.toml`. Those articles remain the property of their publishers. The 机器之心 entry is a public WeChat-channel mirror, not an official 机器之心 feed; swap the URL if you host your own.
 
 No API keys, model weights, device addresses, or personal reading history are stored in this repository.

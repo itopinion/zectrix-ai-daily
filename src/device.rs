@@ -1,7 +1,5 @@
-//! NOTE4 navigation. Five stories per page. Up and down move a cursor;
-//! confirm opens the story; back returns to the list. A long confirm starts
-//! the radio-style briefing. While that is playing, any key stops it, except
-//! the confirm release that ends the long press itself.
+//! NOTE4 uses short presses only: Up/Down navigate, Confirm opens or returns.
+//! Long presses belong to the device recording UI. Web controls start continuous play.
 
 use serde::Serialize;
 
@@ -19,9 +17,6 @@ pub struct Board {
     pub cursor: usize,
     pub detail: Option<DetailView>,
     pub briefing: bool,
-    /// False during the brief moment after a long-press starts, so the key
-    /// release does not immediately stop playback.
-    pub stop_armed: bool,
     pub notice: String,
 }
 
@@ -31,7 +26,6 @@ impl Default for Board {
             cursor: 0,
             detail: None,
             briefing: false,
-            stop_armed: false,
             notice: String::new(),
         }
     }
@@ -41,8 +35,7 @@ impl Default for Board {
 pub enum Effect {
     None,
     Opened,
-    Speak,
-    StartBriefing,
+    Closed,
     StopBriefing,
 }
 
@@ -62,39 +55,34 @@ impl Board {
         item_count: usize,
         detail_pages: usize,
     ) -> Effect {
+        // Never reinterpret recording gestures or unknown actions as navigation.
+        if !action.eq_ignore_ascii_case("short") {
+            return Effect::None;
+        }
         if self.briefing {
-            let confirm = key.eq_ignore_ascii_case("confirm");
-            if !self.stop_armed && confirm {
-                return Effect::None;
-            }
             self.briefing = false;
-            self.stop_armed = false;
             self.notice.clear();
             return Effect::StopBriefing;
         }
         let key = key.to_ascii_lowercase();
-        let long = matches!(
-            action.to_ascii_lowercase().as_str(),
-            "long" | "hold" | "held"
-        );
         if item_count == 0 {
             return Effect::None;
         }
         self.cursor = self.cursor.min(item_count - 1);
-        match (self.detail.is_some(), key.as_str(), long) {
-            (false, "up", false) => {
+        match (self.detail.is_some(), key.as_str()) {
+            (false, "up") => {
                 if self.cursor > 0 {
                     self.cursor -= 1;
                 }
                 Effect::None
             }
-            (false, "down", false) => {
+            (false, "down") => {
                 if self.cursor + 1 < item_count {
                     self.cursor += 1;
                 }
                 Effect::None
             }
-            (false, "confirm", false) => {
+            (false, "confirm") => {
                 self.detail = Some(DetailView {
                     index: self.cursor,
                     page: 0,
@@ -102,13 +90,7 @@ impl Board {
                 self.notice.clear();
                 Effect::Opened
             }
-            (false, "confirm", true) => {
-                self.briefing = true;
-                self.stop_armed = false;
-                self.notice.clear();
-                Effect::StartBriefing
-            }
-            (true, "up", false) => {
+            (true, "up") => {
                 if let Some(detail) = self.detail.as_mut() {
                     if detail.page > 0 {
                         detail.page -= 1;
@@ -116,7 +98,7 @@ impl Board {
                 }
                 Effect::None
             }
-            (true, "down", false) => {
+            (true, "down") => {
                 if let Some(detail) = self.detail.as_mut() {
                     let last = detail_pages.saturating_sub(1);
                     if detail.page < last {
@@ -125,11 +107,10 @@ impl Board {
                 }
                 Effect::None
             }
-            (true, "confirm", false) => Effect::Speak,
-            (true, "back" | "left" | "cancel" | "return", _) => {
+            (true, "confirm" | "back" | "left" | "cancel" | "return") => {
                 self.detail = None;
                 self.notice.clear();
-                Effect::None
+                Effect::Closed
             }
             _ => Effect::None,
         }
@@ -145,11 +126,7 @@ impl Board {
         Effect::Opened
     }
 
-    pub fn arm_stop(&mut self) {
-        if self.briefing {
-            self.stop_armed = true;
-        }
-    }
+
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -212,16 +189,26 @@ mod tests {
     }
 
     #[test]
-    fn long_press_starts_and_the_release_does_not_stop() {
+    fn recording_gestures_never_start_playback_or_change_navigation() {
         let mut board = Board::default();
-        assert_eq!(board.handle("Confirm", "Long", 4, 1), Effect::StartBriefing);
-        assert!(board.briefing);
-        assert_eq!(board.handle("Confirm", "Short", 4, 1), Effect::None);
-        assert!(board.briefing);
-        board.arm_stop();
-        assert_eq!(board.handle("Down", "Short", 4, 1), Effect::StopBriefing);
-        assert!(!board.briefing);
-        assert_eq!(board.cursor, 0);
+        for in_detail in [false, true] {
+            if in_detail { board.open(0, 4); }
+            let before = board.clone();
+            for action in ["Long", "Hold", "Held", "Release", "Unknown"] {
+                assert_eq!(board.handle("Confirm", action, 4, 1), Effect::None);
+                assert_eq!(board, before);
+            }
+        }
+    }
+
+    #[test]
+    fn web_briefing_stops_on_first_short_press() {
+        for key in ["Up", "Down", "Confirm"] {
+            let mut board = Board { briefing: true, ..Board::default() };
+            assert_eq!(board.handle(key, "Short", 4, 1), Effect::StopBriefing);
+            assert!(!board.briefing);
+            assert_eq!(board.cursor, 0);
+        }
     }
 
     #[test]
@@ -229,5 +216,15 @@ mod tests {
         let mut board = Board::default();
         assert_eq!(board.handle("Confirm", "Short", 0, 0), Effect::None);
         assert!(board.detail.is_none());
+    }
+
+    #[test]
+    fn three_button_device_can_exit_detail_without_a_back_key() {
+        let mut board = Board::default();
+        board.handle("Down", "Short", 5, 1);
+        assert_eq!(board.handle("Confirm", "Short", 5, 1), Effect::Opened);
+        assert_eq!(board.handle("Confirm", "Short", 5, 1), Effect::Closed);
+        assert!(board.detail.is_none());
+        assert_eq!(board.cursor, 1);
     }
 }

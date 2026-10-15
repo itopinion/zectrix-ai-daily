@@ -38,7 +38,7 @@ pub async fn fetch_all(
             let id = source.id.clone();
             match fetch_source(&client, &source, now).await {
                 Ok(articles) => (id, Ok(articles)),
-                Err(error) => (id, Err(error.to_string())),
+                Err(error) => (id, Err(format!("{error:#}"))),
             }
         });
     }

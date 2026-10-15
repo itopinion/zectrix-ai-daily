@@ -1,10 +1,4 @@
-//! Kokoro worker, same JSON-lines shape as the vocabulary app.
-//!
-//! Hub is expected to set `ZECTRIX_TTS_PYTHON` to the shared speech environment.
-//! This app does not download models. English defaults to `af_heart` (Kokoro
-//! lang `a`); Chinese defaults to `zf_xiaobei` (lang `z`). The worker maps the
-//! voice prefix to a pipeline so a settings change does not need a new process
-//! shape.
+//! Offline local speech workers (Qwen-TTS or Hub Kokoro).
 
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
@@ -26,27 +20,40 @@ pub struct Speech {
     python: PathBuf,
     script: PathBuf,
     log: PathBuf,
+    model: Option<PathBuf>,
+    qwen: bool,
 }
 
 impl Speech {
     pub fn new(app_root: &Path, data_root: &Path) -> Self {
-        let python = std::env::var("ZECTRIX_TTS_PYTHON")
-            .map(PathBuf::from)
-            .unwrap_or_default();
+        let local = crate::local::LocalRuntime::load(data_root).unwrap_or_default();
+        let qwen = local.tts_backend.as_deref() == Some("qwen") || local.qwen_model.is_some();
+        let python = local.tts_python.or_else(|| std::env::var("ZECTRIX_TTS_PYTHON").ok().map(PathBuf::from)).unwrap_or_default();
         Self {
             worker: Mutex::new(None),
             python,
-            script: app_root.join("workers/tts.py"),
+            script: app_root.join(if qwen { "workers/qwen_tts.py" } else { "workers/tts.py" }),
+            model: local.qwen_model,
+            qwen,
             log: data_root.join("logs/tts.log"),
         }
     }
 
     pub fn installed(&self) -> bool {
-        !self.python.as_os_str().is_empty()
+        self.python.is_file() && (!self.qwen || self.model.as_ref().is_some_and(|p| p.join("config.json").is_file()))
+    }
+
+    pub fn backend(&self) -> &'static str {
+        if self.qwen { "qwen" } else { "kokoro" }
+    }
+
+    pub fn cache_identity(&self) -> String {
+        format!("{}|{}", self.backend(), self.model.as_ref().map(|p| p.to_string_lossy()).unwrap_or_default())
     }
 
     async fn spawn(&self) -> Result<Worker> {
         if !self.installed() {
+            if self.qwen { bail!("缺少本机 Qwen-TTS 模型，请在 local-runtime.json 配置 qwen_model；Qwen-ASR 不能生成语音。"); }
             bail!("语音组件未安装。请在 ZECTRIX Hub 安装本地语音环境；简报仍可阅读。");
         }
         if let Some(parent) = self.log.parent() {
@@ -56,7 +63,9 @@ impl Speech {
             .append(true)
             .create(true)
             .open(&self.log)?;
-        let mut child = Command::new(&self.python)
+        let mut command = Command::new(&self.python);
+        if let Some(model) = &self.model { command.env("ZECTRIX_QWEN_MODEL", model); }
+        let mut child = command
             .arg("-u")
             .arg(&self.script)
             .stdin(Stdio::piped())
@@ -89,7 +98,7 @@ impl Speech {
             *guard = Some(self.spawn().await?);
         }
         let worker = guard.as_mut().unwrap();
-        let result = tokio::time::timeout(Duration::from_secs(90), async {
+        let result = tokio::time::timeout(Duration::from_secs(if self.qwen { 300 } else { 90 }), async {
             worker
                 .input
                 .write_all(format!("{request}\n").as_bytes())

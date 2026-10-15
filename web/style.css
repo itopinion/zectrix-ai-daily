@@ -121,7 +121,8 @@ h2 { font-size: 16px; margin: 0; letter-spacing: 0.04em; }
 .eink header { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1px solid #111; padding-bottom: 4px; }
 .eink .rows { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 6px; }
 .eink .row { padding: 3px 0; border-left: 2px solid transparent; padding-left: 6px; }
-.eink .row.selected { border-left-color: #111; font-weight: 700; }
+.eink .row.selected { border-left-color: #111; font-weight: 700; background: #111; color: #fff; }
+.eink .row.selected small { color: #fff; }
 .eink .row small { display: block; font-weight: 400; color: #333; font-size: 11px; }
 .eink .detail-title { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
 .eink .detail-meta { font-size: 11px; margin-bottom: 6px; }

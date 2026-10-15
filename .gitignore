@@ -19,3 +19,7 @@
 *.hex
 *.dfu
 .venv/
+
+# Local verification output and machine-specific configuration
+/output/
+local-runtime.json

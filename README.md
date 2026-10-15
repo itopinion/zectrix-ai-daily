@@ -13,7 +13,7 @@
 1. [下载并启动 ZECTRIX Hub](https://github.com/itopinion/zectrix-hub/releases)，在本地管理页连接 Note 4。
 2. 在 Apple Silicon Mac 上用下面的「开发与打包」生成 `dist/zectrix-ai-daily-<version>-macos-aarch64.zip`，或使用已发布的同名 ZIP。
 3. 在 Hub 的应用安装入口选择该 ZIP，打开「AI 日报」。
-4. 需要朗读时，先在 Hub 安装本地语音组件（Kokoro），再重新打开本应用。没有语音组件时，简报仍可阅读。
+4. 需要朗读时，按文末「本机 Qwen-TTS」配置已有模型和 Python 环境；也可使用 Hub 的 Kokoro 语音组件。重新打开本应用后生效。没有语音组件时，简报仍可阅读。
 
 **设备要求与词汇应用相同：ZECTRIX Note 4，官方固件 3.7.0 及以上，并进入本地推送模式。** 固件升级见 [官方说明](https://wiki.zectrix.com/zh/software/firmware)。本应用不包含固件，也不自动兼容 Note 4C。
 
@@ -35,11 +35,10 @@ macOS 首次询问 `zectrix-hub` 的本地网络权限时需要允许。网页�
 | 按键 | 列表 | 详情 | 连播中 |
 | --- | --- | --- | --- |
 | 上 / 下 | 移动选择，满 5 条自动翻页 | 翻摘要页 | 停止 |
-| 确认短按 | 打开当前条；若开启朗读则读这一条 | 再读一遍 | 停止（按下后约 0.7 秒内的确认松开会被忽略，避免长按松手立刻打断） |
-| 确认长按 | 从当前条开始连播 | — | 停止 |
+| 确认短按 | 打开当前条；若开启朗读则读这一条 | 返回列表并停止朗读 | 停止 |
 | 返回 / Left / Cancel | — | 回到列表 | 停止 |
 
-长按在事件里的 `action` 取 `Long`、`Hold` 或 `Held`。这是根据词汇应用只处理了 `Short` 之后做的假设，需要在真机上核对。
+Note 4 长按确认会触发设备录音，因此本应用只处理 Short 短按。连播从网页按钮启动；重新进入详情可重听。
 
 ## 架构
 
@@ -116,7 +115,7 @@ macOS 首次询问 `zectrix-hub` 的本地网络权限时需要允许。网页�
 | `ZECTRIX_APP_TOKEN` | Hub 发给本进程的 Bearer 令牌。不会出现在网页或 `/api/boot` 里。 |
 | `ZECTRIX_APP_DATA` | 可写的数据目录，更新应用时保留。 |
 | `ZECTRIX_APP_ROOT` | 安装目录，用来找 `sources.toml` 和 `workers/tts.py`。 |
-| `ZECTRIX_APP_PORT` 或 `ZECTRIX_AI_DAILY_PORT` | 设置页端口。词汇应用用的是它自己的 `ZECTRIX_VOCAB_PORT`，所以 Hub 实际注入的端口变量名是假设，两个名字都认。 |
+| `ZECTRIX_APP_PORT` / `ZECTRIX_AI_DAILY_PORT` / `ZECTRIX_VOCAB_PORT` | 设置页端口，按此顺序读取。已核对 Hub v1 启动源码：当前向所有应用注入 `ZECTRIX_VOCAB_PORT`，本应用兼容该名称。 |
 | `ZECTRIX_TTS_PYTHON` | 可选。Hub 语音环境的 Python。为空则朗读报「未安装」，阅读不受影响。 |
 
 所有请求都带 `Authorization: Bearer <ZECTRIX_APP_TOKEN>`，且禁止重定向。
@@ -280,6 +279,8 @@ ZECTRIX_DEV=1 cargo run
 
 开发模式使用 `./dev-data`，不连接 Hub，画面预览由网页根据同一套视图模型画出。
 
+抓取新闻支持环境变量中的 HTTP 和 SOCKS5/SOCKS5h 代理。本机 Hub 与 Ollama 请求始终绕过代理。
+
 测试覆盖：RSS/Atom/arXiv 解析、HTML 冒充 feed、HN 过滤、URL 去重、标题聚类、启发式排序、模型 JSON（代码块与 `<think>`）、模型不可用时的回退摘要、设置校验、按日期归档，以及一个假 Hub 上的集成测试（刷新、租约隔离、上/下/确认/返回）。
 
 CI 在 `.github/workflows/ci.yml`：Ubuntu 上 `cargo test --locked`，macOS 15 Apple Silicon 上再打包并上传 ZIP。不下载模型，不访问真机，不自动发布 Release。
@@ -288,8 +289,8 @@ CI 在 `.github/workflows/ci.yml`：Ubuntu 上 `cargo test --locked`，macOS 15 
 
 编写时读到了公开的词汇应用，**没有读到私有的 `itopinion/zectrix-hub`**（本环境没有可用的 GitHub 凭据）。因此下面几项是假设，需要在 Apple Silicon Mac 和一台 Note 4 上确认：
 
-- Hub 注入的端口变量究竟是 `ZECTRIX_APP_PORT` 还是别的名字。
-- `/runtime/*` 的字段是否与词汇应用完全一致，尤其是音频 `result` 字符串、事件里的 `action` 长按取值，以及有没有「返回」键。
+- 端口名称已核对 Hub v1 源码并通过模拟 Hub 启动测试；完整安装流程仍需实测。
+- `/runtime/*` 的字段是否与词汇应用完全一致，尤其是音频 `result` 字符串和 Short 按键事件。
 - 卡片 JSON 的 `y` 是垂直中心、基线，还是顶边。现在按词汇应用的坐标风格，把 `y` 当作中心。
 - Hub 自带的 Kokoro 环境能否加载中文 `lang_code=z`、声音 `zf_xiaobei`。英文默认 `af_heart`，与词汇应用相同。
 - `POST /runtime/stop` 能否在 `POST /runtime/audio` 还没返回时打断播放。
@@ -299,3 +300,20 @@ CI 在 `.github/workflows/ci.yml`：Ubuntu 上 `cargo test --locked`，macOS 15 
 ## 许可
 
 程序代码使用 MIT 许可，见 `LICENSE`。第三方组件和模型各自遵循原许可，见 `THIRD_PARTY_NOTICES.md`。
+
+## Codex 整理与三键操作（0.1.3）
+
+网页「摘要来源」可选 Codex、信源原文或 Ollama。Codex 调用已登录的本机 CLI，以只读、临时会话和 JSON Schema 输出整理新闻；新闻原文作为不可信数据传入，不需要安装本地文本模型。使用既有 Codex 账号额度。失败时保留可读的信源摘要并显示警告。
+
+在应用数据目录建立 `local-runtime.json` 指定本机 CLI 的绝对路径，例如 `{"codex_bin":"/absolute/path/to/codex"}`；可选 `codex_model` 指定模型。不把该机器配置或账号凭证放进安装包。
+
+Note 4 只有上、下、确认三个键：列表短按确认进入，详情短按确认返回；开启朗读后进入详情自动朗读；重新进入可重听，连播使用网页按钮。选中行使用黑底白字。语音合成在后台进行，返回操作会取消待播放内容。
+
+### 本机 Qwen-TTS
+
+在应用数据目录的 `local-runtime.json` 中设置 `tts_backend: "qwen"`、
+`tts_python`（已有 MLX Audio 环境的 Python 路径）和 `qwen_model`（已有
+Qwen3-TTS CustomVoice 模型目录），然后重新启动此应用。模型不会打包或自动下载。
+Qwen-ASR 是识别模型，不能用于朗读。中文默认 Vivian，英文默认 Ryan，输出
+16 kHz 单声道 PCM WAV。语速使用重采样，会同时影响音高。
+未配置模型时，页面会显示缺少本机模型；阅读与 Codex 摘要仍可正常使用。

@@ -13,7 +13,7 @@ The app never talks to the panel directly. Hub owns the device, app switching, a
 1. [Download and start ZECTRIX Hub](https://github.com/itopinion/zectrix-hub/releases), then connect a Note 4 from its local page.
 2. On an Apple Silicon Mac, build `dist/zectrix-ai-daily-<version>-macos-aarch64.zip` with the commands below, or use a published ZIP of that name.
 3. Install that ZIP from Hub and open “AI 日报”.
-4. For spoken briefings, install Hub's local speech components (Kokoro) and reopen the app. Reading still works without them.
+4. For speech, configure an existing Qwen-TTS model and Python environment as described below, or use Hub's Kokoro components. Reopen the app to apply the configuration. Reading works without speech.
 
 **Same device requirement as the vocabulary app: ZECTRIX Note 4, official firmware 3.7.0 or newer, in local push mode.** Firmware steps are in the [official guide](https://wiki.zectrix.com/zh/software/firmware) (Chinese). This app ships no firmware and does not claim Note 4C support.
 
@@ -35,11 +35,10 @@ Device keys use the same commands as the on-screen buttons:
 | Key | List | Detail | While playing |
 | --- | --- | --- | --- |
 | Up / Down | Move the cursor; the page advances every 5 items | Page the summary | Stop |
-| Confirm, short | Open the item and, if speech is on, read it | Read it again | Stop. A Confirm release within about 0.7s of the long press is ignored so letting go does not cancel playback |
-| Confirm, long | Start continuous play at the cursor | — | Stop |
+| Confirm, short | Open and read if speech is on | Return and stop | Stop |
 | Back / Left / Cancel | — | Return to the list | Stop |
 
-A long press is an event whose `action` is `Long`, `Hold`, or `Held`. The vocabulary app only demonstrated `Short`, so the long-press token still needs to be checked on hardware.
+Note 4 uses long confirm for recording. This app only handles Short key events. Reopen a story to replay it; start continuous play from the web Play button.
 
 ## Architecture
 
@@ -116,7 +115,7 @@ Hub injects these when it launches the app:
 | `ZECTRIX_APP_TOKEN` | Bearer token for this process. It is never sent to the browser or returned by `/api/boot`. |
 | `ZECTRIX_APP_DATA` | Writable directory. App updates leave it in place. |
 | `ZECTRIX_APP_ROOT` | Install directory, used to find `sources.toml` and `workers/tts.py`. |
-| `ZECTRIX_APP_PORT` or `ZECTRIX_AI_DAILY_PORT` | Settings-page port. The vocabulary app reads its own `ZECTRIX_VOCAB_PORT`, so the exact name Hub injects is an assumption. Both names are accepted. |
+| `ZECTRIX_APP_PORT` / `ZECTRIX_AI_DAILY_PORT` / `ZECTRIX_VOCAB_PORT` | Settings-page port, checked in this order. Verified against Hub v1 startup code: it currently injects `ZECTRIX_VOCAB_PORT` for every app. |
 | `ZECTRIX_TTS_PYTHON` | Optional path to Hub's speech Python. When unset, speech reports that it is not installed and reading still works. |
 
 Every Hub call sends `Authorization: Bearer <ZECTRIX_APP_TOKEN>` and does not follow redirects.
@@ -288,7 +287,7 @@ CI is `.github/workflows/ci.yml`: `cargo test --locked` on Ubuntu, then package-
 
 The public vocabulary app was readable. The private `itopinion/zectrix-hub` repository was **not** (this environment had no GitHub credentials). These points are assumptions until they are tried on Apple Silicon and a Note 4:
 
-- Whether Hub injects `ZECTRIX_APP_PORT` or some other port variable.
+- The port name has been verified against Hub v1 source and tested with a mock Hub; the full installation flow still needs validation.
 - Whether `/runtime/*` matches the vocabulary client exactly, in particular the audio `result` string, the long-press `action` value, and whether a Back key exists.
 - Whether card `y` is the vertical center, the baseline, or the top. Coordinates follow the vocabulary layout and treat `y` as the center.
 - Whether Hub's Kokoro environment can load Mandarin `lang_code=z` and voice `zf_xiaobei`. English defaults to `af_heart`, as in the vocabulary app.
@@ -299,3 +298,33 @@ The public vocabulary app was readable. The private `itopinion/zectrix-hub` repo
 ## License
 
 Project code is MIT. See `LICENSE`. Third-party components and models keep their own licenses; see `THIRD_PARTY_NOTICES.md`.
+
+## Codex and local Qwen-TTS (0.1.3)
+
+Choose Codex in the summary source selector to use the signed-in local Codex CLI.
+It runs an ephemeral, read-only session with structured JSON output and uses the
+existing account quota. No local text model is required. Ollama and feed-only
+summaries remain available; existing settings keep their previous backend.
+
+Store machine-specific paths in `local-runtime.json` in the app data directory,
+then restart the app. Replace the example paths with actual absolute paths:
+
+```json
+{
+  "codex_bin": "/absolute/path/to/codex",
+  "tts_backend": "qwen",
+  "tts_python": "/absolute/path/to/mlx-audio-environment/bin/python",
+  "qwen_model": "/absolute/path/to/Qwen3-TTS-CustomVoice"
+}
+```
+
+`codex_model` is optional. Qwen3-TTS CustomVoice weights must already exist locally;
+the app neither downloads nor packages models. Qwen-ASR is a speech recognition
+model and cannot generate speech. Chinese uses Vivian and English uses Ryan. The
+worker produces 16 kHz mono PCM WAV; resampling for speed also changes pitch.
+
+On Note 4, short Confirm opens and reads a story when speech is enabled; short
+Confirm again returns and stops. Reopen to replay. Continuous play uses the web
+button. Long press belongs to device recording and is ignored by this app.
+Selection uses a black row with white text. Speech runs in the background so
+navigation remains responsive during synthesis.

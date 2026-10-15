@@ -11,12 +11,12 @@ const i18n = {
     refreshing: "正在抓取信源并整理…",
     saved: "设定已保存",
     emptyTitle: "这一天还没有简报",
-    emptyBody: "可以现在刷新，或等到设定的时间自动整理。没有本地模型时，仍会按信源权重和时间生成摘要。",
+    emptyBody: "可以现在刷新，或等到设定的时间自动整理。可用 Codex 整理中文摘要，也可直接阅读信源原文。",
     device: "Note 4 画面",
-    hint: "上下选择，确认阅读。长按确认或点连播，会按顺序朗读，任意键停止。",
+    hint: "上下选择，短按确认进入详情并自动朗读（需开启朗读），再次短按确认返回并停止。连播请点网页按钮；长按是设备录音。",
     settings: "早报设定",
     tts: "打开朗读",
-    modelHint: "留空 Ollama 地址即只用信源摘要。换语言会用已保存的原文重写当天简报。",
+    modelHint: "Codex 使用本机已登录的账号整理新闻，不需要安装文本模型。换语言会用已保存的原文重新整理。",
     save: "保存设定",
     sources: "信源",
     saveSources: "保存信源开关",
@@ -24,7 +24,7 @@ const i18n = {
     noHistory: "还没有往日归档。",
     onDevice: "在设备上显示",
     fallback: "未使用模型，按信源权重与时间排序",
-    model: "本地模型整理",
+    model: "AI 整理",
     items: "条",
     up: "上", down: "下", select: "确认", back: "返回", briefing: "连播", stop: "停止",
     open: "原文",
@@ -42,12 +42,12 @@ const i18n = {
     refreshing: "Fetching sources and editing…",
     saved: "Settings saved",
     emptyTitle: "No briefing for this day",
-    emptyBody: "Refresh now, or wait for the scheduled run. Without a local model, summaries come from the feeds.",
+    emptyBody: "Refresh now, or wait for the scheduled run. Choose Codex to edit the briefing, or read the original feeds.",
     device: "Note 4 preview",
-    hint: "Up and down select. Confirm opens a story. Hold confirm, or press Play, to read the list aloud. Any key stops.",
+    hint: "Up/Down select. Short confirm opens and reads when speech is on; confirm again returns and stops. Use the web Play button for continuous play. Holding is for device recording.",
     settings: "Edition settings",
     tts: "Read aloud",
-    modelHint: "Leave the Ollama URL empty to keep feed summaries. Switching language rewrites today's digest from the saved sources.",
+    modelHint: "Codex uses your existing local sign-in; no local text model is needed. Switching language rewrites the saved stories.",
     save: "Save settings",
     sources: "Sources",
     saveSources: "Save source switches",
@@ -55,7 +55,7 @@ const i18n = {
     noHistory: "No archived days yet.",
     onDevice: "Show on device",
     fallback: "No model — ranked by source weight and time",
-    model: "Edited by local model",
+    model: "AI edited",
     items: "items",
     up: "Up", down: "Down", select: "OK", back: "Back", briefing: "Play", stop: "Stop",
     open: "Source",
@@ -154,6 +154,8 @@ function fillSettings(next) {
   $("speedOut").textContent = Number(next.tts_speed).toFixed(2);
   $("volume").value = next.volume;
   $("volumeOut").textContent = next.volume;
+  $("llmBackend").value = next.llm_backend || "ollama";
+  $("ollamaFields").hidden = next.llm_backend !== "ollama";
   $("ollamaUrl").value = next.ollama_url;
   $("ollamaModel").value = next.ollama_model;
   $("voiceEn").value = next.voice_en;
@@ -175,6 +177,7 @@ function readSettings() {
     tts_enabled: $("ttsEnabled").checked,
     tts_speed: Number($("ttsSpeed").value),
     volume: Number($("volume").value),
+    llm_backend: $("llmBackend").value,
     ollama_url: $("ollamaUrl").value.trim(),
     ollama_model: $("ollamaModel").value.trim(),
     voice_en: $("voiceEn").value.trim(),
@@ -341,6 +344,9 @@ async function showArchive(date) {
 }
 
 function renderStatus(status) {
+  $("speechStatus").textContent = status.speech_backend === "qwen"
+    ? (status.speech_installed ? (language === "zh" ? "Qwen-TTS · 本机模型" : "Qwen-TTS · local model") : (language === "zh" ? "Qwen-TTS 缺少本机模型，朗读暂不可用" : "Local Qwen-TTS model missing; speech unavailable"))
+    : (status.speech_installed ? "Kokoro" : (language === "zh" ? "本机语音尚未配置" : "Local speech is not configured"));
   const connected = status.device && status.device.connected === true;
   $("deviceDot").className = connected ? "dot on" : "dot";
   $("deviceStatus").textContent = status.runtime && status.runtime.offline
@@ -379,6 +385,8 @@ async function device(body) {
 document.querySelectorAll("[data-key]").forEach((button) => {
   button.addEventListener("click", () => device({ action: button.dataset.key }));
 });
+
+$("llmBackend").addEventListener("change", () => { $("ollamaFields").hidden = $("llmBackend").value !== "ollama"; });
 
 $("langToggle").addEventListener("click", async () => {
   if (!settings) return;

@@ -61,6 +61,8 @@ struct Catalog {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
+    #[serde(default = "default_backend")]
+    pub llm_backend: String,
     #[serde(default = "default_language")]
     pub language: String,
     #[serde(default = "default_hour")]
@@ -94,6 +96,7 @@ pub struct Settings {
 fn default_language() -> String {
     "zh".into()
 }
+fn default_backend() -> String { "ollama".into() }
 fn default_hour() -> u8 {
     7
 }
@@ -122,6 +125,7 @@ fn default_voice_zh() -> String {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            llm_backend: default_backend(),
             language: default_language(),
             refresh_hour: default_hour(),
             refresh_minute: 0,
@@ -141,6 +145,9 @@ impl Default for Settings {
 
 impl Settings {
     pub fn validate(&self) -> Result<()> {
+        if !matches!(self.llm_backend.as_str(), "codex" | "ollama" | "fallback") {
+            bail!("摘要来源须为 codex、ollama 或 fallback");
+        }
         if self.language != "zh" && self.language != "en" {
             bail!("language 只能是 zh 或 en");
         }

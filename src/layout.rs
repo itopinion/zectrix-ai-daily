@@ -231,6 +231,10 @@ fn draw_list(elements: &mut Vec<Value>, board: &Board, digest: &Digest, copy: &C
         let top = 40 + slot as i32 * 42;
         let index = start + slot;
         let selected = index == board.cursor;
+        if selected {
+            elements.push(json!({"type":"rect","x":9,"y":top,"w":381,"h":40,"fill":0}));
+        }
+        let first_text = elements.len();
         let marker = if board.briefing && selected {
             copy.speaking
         } else if selected {
@@ -259,6 +263,11 @@ fn draw_list(elements: &mut Vec<Value>, board: &Board, digest: &Digest, copy: &C
             "left",
             "regular",
         );
+        if selected {
+            for element in &mut elements[first_text..] {
+                element["fill"] = json!(255);
+            }
+        }
     }
     let footer = if board.briefing {
         copy.footer_briefing

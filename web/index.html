@@ -57,7 +57,7 @@
           <button type="button" data-key="briefing" id="keyBrief">连播</button>
           <button type="button" data-key="stop" id="keyStop">停止</button>
         </div>
-        <p class="hint" id="keyHint">上下选择，确认阅读。长按确认或点连播，会按顺序朗读，任意键停止。</p>
+        <p class="hint" id="keyHint">上下选择，短按确认进入详情并自动朗读（需开启朗读），再次短按确认返回并停止。连播请点网页按钮；长按是设备录音。</p>
       </section>
 
       <form id="settingsForm" class="panel">
@@ -71,18 +71,24 @@
           <input id="itemCount" type="number" min="5" max="20" step="1" required>
         </label>
         <label class="check"><input id="ttsEnabled" type="checkbox"> <span id="ttsLabel">打开朗读</span></label>
+        <p id="speechStatus" role="status"></p>
         <label>语速 <output id="speedOut">1.00</output>
           <input id="ttsSpeed" type="range" min="0.7" max="1.4" step="0.05">
         </label>
         <label>设备音量 <output id="volumeOut">70</output>
           <input id="volume" type="range" min="0" max="100" step="1">
         </label>
+        <label>摘要来源
+          <select id="llmBackend"><option value="codex">Codex</option><option value="fallback">信源原文</option><option value="ollama">Ollama</option></select>
+        </label>
+        <div id="ollamaFields">
         <label>Ollama 地址
           <input id="ollamaUrl" type="url" placeholder="http://127.0.0.1:11434" autocomplete="off">
         </label>
         <label>模型
           <input id="ollamaModel" type="text" autocomplete="off">
         </label>
+        </div>
         <div class="pair">
           <label>英文声音
             <input id="voiceEn" type="text" autocomplete="off">

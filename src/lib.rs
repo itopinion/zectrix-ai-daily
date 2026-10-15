@@ -15,6 +15,7 @@ pub mod hub;
 pub mod i18n;
 pub mod layout;
 pub mod llm;
+pub mod local;
 pub mod model;
 pub mod parse;
 pub mod pipeline;

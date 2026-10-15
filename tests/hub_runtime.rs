@@ -196,7 +196,10 @@ max_items = 10
         .env("ZECTRIX_APP_TOKEN", "private-test-secret")
         .env("ZECTRIX_APP_ROOT", env!("CARGO_MANIFEST_DIR"))
         .env("ZECTRIX_APP_DATA", &root)
-        .env("ZECTRIX_APP_PORT", port.to_string())
+        // Hub v1 injects this name for every app, including AI Daily.
+        .env("ZECTRIX_VOCAB_PORT", port.to_string())
+        .env_remove("ZECTRIX_APP_PORT")
+        .env_remove("ZECTRIX_AI_DAILY_PORT")
         .env("ZECTRIX_DISABLE_SCHEDULER", "1")
         .env_remove("ZECTRIX_TTS_PYTHON")
         .env_remove("ZECTRIX_DEV")
@@ -285,7 +288,7 @@ max_items = 10
     stub.lock().await.events.push(json!({"seq": 2, "lease": 1, "event": {"type": "key", "key": "Confirm", "action": "Short"}}));
     wait_status(&client, &url, |value| value["view"]["mode"] == "detail").await;
     stub.lock().await.events.push(
-        json!({"seq": 3, "lease": 1, "event": {"type": "key", "key": "Back", "action": "Short"}}),
+        json!({"seq": 3, "lease": 1, "event": {"type": "key", "key": "Confirm", "action": "Short"}}),
     );
     wait_status(&client, &url, |value| {
         value["view"]["mode"] == "list" && value["view"]["cursor"] == 1

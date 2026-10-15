@@ -21,7 +21,11 @@ pub fn prepare(
     rank(cluster_articles(articles), now)
 }
 
-pub fn backend_for(settings: &Settings) -> Result<Box<dyn LlmBackend>> {
+pub fn backend_for(settings: &Settings, root: &Path) -> Result<Box<dyn LlmBackend>> {
+    if settings.llm_backend == "codex" {
+        return Ok(Box::new(llm::CodexBackend::new(root)?));
+    }
+    if settings.llm_backend == "fallback" { return Ok(Box::new(FallbackOnly)); }
     if settings.ollama_url.trim().is_empty() || settings.ollama_model.trim().is_empty() {
         return Ok(Box::new(FallbackOnly));
     }
@@ -87,7 +91,7 @@ pub async fn run(
             }
         );
     }
-    let llm = backend_for(settings)?;
+    let llm = backend_for(settings, data_root)?;
     let digest = build_digest(articles, settings, date, warnings, llm.as_ref()).await;
     store::save_digest(data_root, &digest)?;
     Ok(digest)
@@ -99,7 +103,7 @@ pub async fn regenerate(data_root: &Path, settings: &Settings, date: &str) -> Re
     if existing.clusters.is_empty() {
         bail!("这一天的归档没有原始聚类，无法换语言重写");
     }
-    let llm = backend_for(settings)?;
+    let llm = backend_for(settings, data_root)?;
     let articles: Vec<_> = existing
         .clusters
         .iter()

@@ -191,7 +191,7 @@ fn data_root(dev: bool) -> Result<PathBuf> {
 }
 
 fn listen_port(dev: bool) -> Result<u16> {
-    for key in ["ZECTRIX_APP_PORT", "ZECTRIX_AI_DAILY_PORT"] {
+    for key in ["ZECTRIX_APP_PORT", "ZECTRIX_AI_DAILY_PORT", "ZECTRIX_VOCAB_PORT"] {
         if let Ok(value) = std::env::var(key) {
             let port: u16 = value.parse().context("网页端口无效")?;
             if port == 0 {
@@ -204,8 +204,7 @@ fn listen_port(dev: bool) -> Result<u16> {
         return Ok(43117);
     }
     bail!(
-        "缺少 ZECTRIX_APP_PORT（也接受 ZECTRIX_AI_DAILY_PORT）。\
-         词汇应用使用专属变量 ZECTRIX_VOCAB_PORT；本应用同时接受 Hub 通用端口名与专属名。"
+        "缺少网页端口：需要 ZECTRIX_APP_PORT、ZECTRIX_AI_DAILY_PORT 或 Hub v1 的 ZECTRIX_VOCAB_PORT。"
     )
 }
 
@@ -320,6 +319,7 @@ async fn status(State(app): State<Shared>) -> Json<Value> {
         "digest": public,
         "tts": app.tts_state.read().await.clone(),
         "speech_installed": app.speech.installed(),
+        "speech_backend": app.speech.backend(),
         "revision": app.frame.load(Ordering::Relaxed),
         "today": today,
         "next_run": next.to_rfc3339(),
@@ -330,6 +330,7 @@ async fn save_settings(State(app): State<Shared>, Json(next): Json<Settings>) ->
     next.validate()?;
     let previous = app.settings.lock().await.clone();
     let regenerate = previous.language != next.language
+        || previous.llm_backend != next.llm_backend
         || previous.item_count != next.item_count
         || previous.ollama_url != next.ollama_url
         || previous.ollama_model != next.ollama_model;
@@ -420,7 +421,10 @@ async fn device_action(State(app): State<Shared>, Json(body): Json<DeviceAction>
         "down" => apply_key_owned(app.clone(), "Down", "Short").await?,
         "select" => apply_key_owned(app.clone(), "Confirm", "Short").await?,
         "back" => apply_key_owned(app.clone(), "Back", "Short").await?,
-        "briefing" => apply_key_owned(app.clone(), "Confirm", "Long").await?,
+        "briefing" => {
+            halt_briefing(&app).await;
+            start_briefing(app.clone()).await;
+        }
         "stop" => {
             halt_briefing(&app).await;
         }
@@ -606,7 +610,6 @@ async fn apply_runtime(app: &App, next: hub::Runtime) {
         app.briefing_gen.fetch_add(1, Ordering::Relaxed);
         let mut board = app.board.lock().await;
         board.briefing = false;
-        board.stop_armed = false;
         drop(board);
         changed(app);
     }
@@ -669,13 +672,7 @@ async fn apply_key_owned(app: Shared, key: &str, action: &str) -> Result<()> {
     changed(&app);
     match effect {
         Effect::Opened => maybe_speak_open(&app).await,
-        Effect::Speak => {
-            if let Err(error) = speak_current(&app).await {
-                app.board.lock().await.notice = error.to_string();
-                changed(&app);
-            }
-        }
-        Effect::StartBriefing => start_briefing(app).await,
+        Effect::Closed => halt_briefing(&app).await,
         Effect::StopBriefing => halt_briefing(&app).await,
         Effect::None => {}
     }
@@ -698,10 +695,20 @@ async fn start_briefing(app: Shared) {
         return;
     }
     let gen = app.briefing_gen.fetch_add(1, Ordering::Relaxed) + 1;
-    let start = app.board.lock().await.cursor;
+    let start = {
+        let mut board = app.board.lock().await;
+        board.briefing = true;
+        board.detail = None;
+        board.notice.clear();
+        board.cursor
+    };
+    changed(&app);
     let player = app.clone();
     tokio::spawn(async move {
         if let Err(error) = briefing_loop(player.clone(), start, gen).await {
+            if player.briefing_gen.load(Ordering::Relaxed) != gen {
+                return;
+            }
             let mut board = player.board.lock().await;
             board.notice = error.to_string();
             board.briefing = false;
@@ -709,24 +716,29 @@ async fn start_briefing(app: Shared) {
             changed(&player);
         }
     });
-    let armer = app.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(700)).await;
-        armer.board.lock().await.arm_stop();
-    });
+
 }
 
-async fn maybe_speak_open(app: &App) {
+async fn maybe_speak_open(app: &Shared) {
     if !app.settings.lock().await.tts_enabled {
         return;
     }
-    if let Err(error) = speak_current(app).await {
-        app.board.lock().await.notice = error.to_string();
-        changed(app);
-    }
+    start_single_speech(app.clone());
 }
 
-async fn speak_current(app: &App) -> Result<()> {
+fn start_single_speech(app: Shared) {
+    let gen = app.briefing_gen.fetch_add(1, Ordering::Relaxed) + 1;
+    tokio::spawn(async move {
+        if let Err(error) = speak_current(&app, gen).await {
+            if app.briefing_gen.load(Ordering::Relaxed) == gen {
+                app.board.lock().await.notice = error.to_string();
+                changed(&app);
+            }
+        }
+    });
+}
+
+async fn speak_current(app: &App, gen: u64) -> Result<()> {
     let digest = app.digest.read().await.clone().context("没有简报")?;
     let board = app.board.lock().await.clone();
     let index = board
@@ -738,7 +750,10 @@ async fn speak_current(app: &App) -> Result<()> {
     let script = item.tts_script.clone();
     let language = digest.language.clone();
     let path = synthesize(app, &script, &language).await?;
-    play_file(app, &path).await
+    if app.briefing_gen.load(Ordering::Relaxed) != gen {
+        return Ok(());
+    }
+    play_file(app, &path, gen).await
 }
 
 async fn briefing_loop(app: Shared, start: usize, gen: u64) -> Result<()> {
@@ -765,7 +780,7 @@ async fn briefing_loop(app: Shared, start: usize, gen: u64) -> Result<()> {
         if app.briefing_gen.load(Ordering::Relaxed) != gen {
             return Ok(());
         }
-        play_file(&app, &path).await?;
+        play_file(&app, &path, gen).await?;
     }
     if app.briefing_gen.load(Ordering::Relaxed) == gen {
         let mut board = app.board.lock().await;
@@ -789,7 +804,7 @@ async fn synthesize(app: &App, text: &str, language: &str) -> Result<PathBuf> {
     let settings = app.settings.lock().await.clone();
     let voice = settings.voice_for(language).to_string();
     let speed = settings.tts_speed;
-    let material = format!("kokoro|{language}|{voice}|{speed:.2}|{text}");
+    let material = format!("{}|{language}|{voice}|{speed:.2}|{text}", app.speech.cache_identity());
     let key = hex_prefix(Sha256::digest(material.as_bytes()).as_slice(), 32);
     let path = app.root.join(format!("audio/{key}.wav"));
     if tokio::fs::metadata(&path)
@@ -822,8 +837,9 @@ async fn synthesize(app: &App, text: &str, language: &str) -> Result<PathBuf> {
     }
 }
 
-async fn play_file(app: &App, path: &FsPath) -> Result<()> {
+async fn play_file(app: &App, path: &FsPath, gen: u64) -> Result<()> {
     let _gate = app.audio_gate.lock().await;
+    if app.briefing_gen.load(Ordering::Relaxed) != gen { return Ok(()); }
     if app.hub.is_offline() {
         return Ok(());
     }
@@ -836,6 +852,7 @@ async fn play_file(app: &App, path: &FsPath) -> Result<()> {
     }
     let bytes = tokio::fs::read(path).await?;
     let volume = app.settings.lock().await.volume;
+    if app.briefing_gen.load(Ordering::Relaxed) != gen { return Ok(()); }
     app.hub.audio(bytes, volume, state.lease).await?;
     Ok(())
 }
